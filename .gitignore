@@ -1,0 +1,20 @@
+# Variables de entorno (claves): nunca a GitHub
+.env
+.env.*
+!.env.example
+
+# Generado en cada despliegue a partir de las variables de entorno
+public/config.js
+
+# Vercel / Node
+.vercel
+node_modules/
+
+# Listados reales de estudiantes (datos de menores): nunca a GitHub
+*.csv
+*.xlsx
+*.xls
+
+# Sistema
+.DS_Store
+Thumbs.db

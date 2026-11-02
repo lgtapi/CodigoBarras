@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b4b8f">
+<title>Control de Acceso Estudiantil</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <img class="logo" id="logoIEHead" alt="Escudo de la institución">
+    <div><div class="inst" id="nombreInst">Institución Educativa El Pescador</div><div class="sub" id="subInst">La Argentina – Huila · Control de ingreso y salida</div></div>
+  </div>
+  <div class="userbox" id="userbox" hidden>
+    <span id="badgeDemo" class="pill warn" hidden>MODO DEMO</span>
+    <span id="badgeCola" class="pill bad" hidden></span>
+    <button class="btn ghost sm" id="btnCuenta" type="button" title="Mi cuenta">👤 <span id="userName"></span></button>
+    <button class="btn ghost sm" id="btnSalir" type="button">Salir</button>
+  </div>
+</header>
+
+<div id="vCargando" class="center-view"><div class="muted">Cargando…</div></div>
+
+<section id="vLogin" class="center-view" hidden>
+  <div class="card login stack">
+    <div class="logos"><img class="logoIE" alt="Escudo de la institución"><img class="logoEmp" alt="Logo de la empresa"></div>
+    <h2 class="nomInst" style="text-align:center;font-size:19px"></h2>
+    <div id="demoCred" class="cred" hidden>
+      <b>Modo demostración.</b> Ingrese con:<br>
+      Administrador: <code>admin@demo.co</code> / <code>admin123</code><br>
+      Portería: <code>porteria@demo.co</code> / <code>porteria123</code>
+    </div>
+
+    <form id="frmLogin" class="stack">
+      <h2 style="font-size:17px">Ingresar</h2>
+      <div><label class="f" for="lgEmail">Correo</label><input id="lgEmail" type="email" required autocomplete="username"></div>
+      <div><label class="f" for="lgPass">Contraseña</label><input id="lgPass" type="password" required autocomplete="current-password"></div>
+      <label class="chk"><input type="checkbox" class="verClave" data-campos="#lgPass"> Mostrar contraseña</label>
+      <button class="btn pri" style="width:100%" type="submit" id="btnLogin">Ingresar</button>
+      <div class="auth-links"><a href="#" data-ir="recuperar">¿Olvidó su contraseña?</a><a href="#" data-ir="registro">Solicitar una cuenta</a></div>
+    </form>
+
+    <form id="frmRegistro" class="stack" hidden>
+      <h2 style="font-size:17px">Solicitar una cuenta</h2>
+      <p class="muted" style="margin:0;font-size:13px">La cuenta queda <b>pendiente</b> hasta que el administrador la apruebe. (La primera cuenta que se crea en el sistema queda como administrador.)</p>
+      <div><label class="f" for="rgNombre">Nombre completo</label><input id="rgNombre" type="text" required autocomplete="name"></div>
+      <div><label class="f" for="rgEmail">Correo</label><input id="rgEmail" type="email" required autocomplete="username"></div>
+      <div><label class="f" for="rgPass">Contraseña (mínimo 8 caracteres)</label><input id="rgPass" type="password" required minlength="8" autocomplete="new-password"></div>
+      <div><label class="f" for="rgPass2">Repita la contraseña</label><input id="rgPass2" type="password" required autocomplete="new-password"></div>
+      <label class="chk"><input type="checkbox" class="verClave" data-campos="#rgPass,#rgPass2"> Mostrar contraseña</label>
+      <button class="btn pri" style="width:100%" type="submit" id="btnRegistro">Crear cuenta</button>
+      <div class="auth-links"><a href="#" data-ir="login">Ya tengo cuenta</a></div>
+    </form>
+
+    <form id="frmRecuperar" class="stack" hidden>
+      <h2 style="font-size:17px">Recuperar contraseña</h2>
+      <p class="muted" style="margin:0;font-size:13px">Le enviaremos un enlace al correo para crear una contraseña nueva.</p>
+      <div><label class="f" for="rcEmail">Correo</label><input id="rcEmail" type="email" required autocomplete="username"></div>
+      <button class="btn pri" style="width:100%" type="submit" id="btnRecuperar">Enviar enlace</button>
+      <div class="auth-links"><a href="#" data-ir="login">Volver a ingresar</a></div>
+    </form>
+  </div>
+</section>
+
+<section id="vSinPermiso" class="center-view" hidden>
+  <div class="card login stack">
+    <div class="logos"><img class="logoIE" alt="Escudo de la institución"></div>
+    <h2 id="spTitulo">Cuenta pendiente de aprobación</h2>
+    <p class="muted" style="margin:0" id="spTexto"></p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn pri" id="btnReintentar" type="button">Volver a revisar</button>
+      <button class="btn" id="btnSalir2" type="button">Salir</button>
+    </div>
+  </div>
+</section>
+
+<div id="app" hidden>
+  <nav class="tabs" id="tabs">
+    <button type="button" data-tab="escanear">Escanear</button>
+    <button type="button" data-tab="hoy">Hoy</button>
+    <button type="button" data-tab="tablero">Tablero</button>
+    <button type="button" data-tab="estudiantes">Estudiantes</button>
+    <button type="button" data-tab="reportes">Reportes</button>
+    <button type="button" data-tab="usuarios" class="solo-admin">Usuarios<span id="badgePend" class="pill warn" hidden></span></button>
+  </nav>
+  <main>
+    <div id="bannerDemo" class="banner" hidden>
+      <b>Modo demostración:</b> los datos se guardan solo en este navegador. Para usarlo en la institución, configure Supabase al inicio del archivo (vea la guía).
+      Códigos de prueba: <b>1001</b> a <b>1008</b>. <a href="#" id="lnkHistorial">Cargar historial de ejemplo (para ver el tablero)</a> · <a href="#" id="lnkReiniciar">Reiniciar datos de prueba</a>
+    </div>
+
+    <!-- ===================== ESCANEAR ===================== -->
+    <section id="t-escanear" class="tab">
+      <div class="grid2">
+        <div class="stack">
+          <div class="card stack">
+            <div>
+              <label class="f">Modo de registro</label>
+              <div class="seg" id="segModo">
+                <button type="button" data-v="AUTO">Automático</button>
+                <button type="button" data-v="ENTRADA">Solo entrada</button>
+                <button type="button" data-v="SALIDA">Solo salida</button>
+              </div>
+              <div class="muted" style="font-size:12px;margin-top:4px" id="ayudaModo"></div>
+            </div>
+            <div><label class="f" for="inPunto">Punto de control</label><input id="inPunto" type="text" placeholder="Ej: Portería principal"></div>
+            <div>
+              <label class="f" for="inCodigo">Código (lector de barras o digitado + Enter)</label>
+              <input id="inCodigo" type="text" class="codigo-in" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Escanee aquí">
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn pri" id="btnRegistrar" type="button">Registrar</button>
+              <button class="btn" id="btnCamara" type="button">📷 Usar cámara</button>
+            </div>
+            <label class="chk"><input type="checkbox" id="chkLector"> Uso lector físico USB/Bluetooth (ocultar teclado en pantalla)</label>
+            <label class="chk"><input type="checkbox" id="chkSonido" checked> Sonido de confirmación</label>
+            <div id="reader"></div>
+          </div>
+        </div>
+        <div class="stack col-res">
+          <div id="resultado" class="resultado"><div class="muted">Esperando lectura…</div></div>
+          <div class="kpis">
+            <div class="kpi"><b id="kEnt">–</b><span>Entradas hoy</span></div>
+            <div class="kpi"><b id="kSal">–</b><span>Salidas hoy</span></div>
+            <div class="kpi"><b id="kPre">–</b><span>Dentro ahora</span></div>
+          </div>
+          <div class="card">
+            <div style="font-weight:700;margin-bottom:4px">Últimas lecturas</div>
+            <ul class="lista" id="recientes"><li class="muted">Sin lecturas todavía</li></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== HOY ===================== -->
+    <section id="t-hoy" class="tab" hidden>
+      <div class="toolbar">
+        <div class="grow">
+          <label class="f">Vista</label>
+          <div class="seg" id="segHoy">
+            <button type="button" data-v="presentes">Dentro ahora</button>
+            <button type="button" data-v="movimientos">Movimientos</button>
+            <button type="button" data-v="sinregistro">Sin registro hoy</button>
+          </div>
+        </div>
+        <div style="min-width:130px"><label class="f" for="hoyGrado">Grado</label><select id="hoyGrado" class="sel-grado"></select></div>
+        <button class="btn" id="btnHoyAct" type="button">Actualizar</button>
+        <button class="btn" id="btnHoyCSV" type="button">Exportar CSV</button>
+      </div>
+      <div id="hoyInfo" class="muted" style="margin-bottom:8px"></div>
+      <div class="tabla-wrap"><table id="tablaHoy"></table></div>
+    </section>
+
+    <!-- ===================== TABLERO ===================== -->
+    <section id="t-tablero" class="tab" hidden>
+      <div class="toolbar">
+        <div><label class="f" for="tbMes">Mes</label><input type="month" id="tbMes" style="padding:8px 10px;border:1px solid var(--line);border-radius:10px"></div>
+        <div style="min-width:130px"><label class="f" for="tbGrado">Grado</label><select id="tbGrado" class="sel-grado"></select></div>
+        <div><label class="f" for="tbLimite">Hora límite de llegada</label><input type="time" id="tbLimite" value="07:00"></div>
+        <button class="btn pri" id="btnTbAct" type="button">Actualizar</button>
+        <button class="btn" id="btnTbCSV" type="button">Exportar indicadores por estudiante</button>
+      </div>
+      <div id="tbInfo" class="muted" style="margin-bottom:10px"></div>
+
+      <div class="tiles" id="tbTiles"></div>
+
+      <div class="vgrid">
+        <div class="card vcard">
+          <h3>Asistencia por grado</h3>
+          <div class="vs" id="tbSubGrado"></div>
+          <div class="hbars" id="tbGrados"></div>
+          <div class="leyenda"><span><i class="dash"></i>Meta 80 %</span></div>
+        </div>
+        <div class="card vcard">
+          <h3>Asistencia diaria</h3>
+          <div class="vs" id="tbSubDiaria"></div>
+          <div id="tbDiaria"></div>
+          <div class="leyenda"><span><i class="dash"></i>Meta 80 %</span></div>
+        </div>
+
+        <div class="card vcard ancho">
+          <h3>Asistencia por grado y mes</h3>
+          <div class="vs" id="tbSubHeat"></div>
+          <div class="tabla-wrap" style="border:0;max-height:none"><table class="heat" id="tbHeat"></table></div>
+          <div class="leyenda" id="tbHeatLey"></div>
+        </div>
+
+        <div class="card vcard ancho">
+          <h3>Hora de llegada</h3>
+          <div class="vs" id="tbSubLleg"></div>
+          <div id="tbLlegadas"></div>
+          <div class="leyenda"><span><i style="background:var(--s1)"></i>A tiempo</span><span><i style="background:var(--s2)"></i>Después de la hora límite</span></div>
+        </div>
+
+        <div class="card vcard">
+          <h3>Más inasistencias del mes</h3>
+          <div class="vs">Estudiantes activos con más días sin registro</div>
+          <div class="tabla-wrap" style="max-height:none"><table class="mini" id="tbAusentes"></table></div>
+        </div>
+        <div class="card vcard">
+          <h3>Más llegadas tarde del mes</h3>
+          <div class="vs" id="tbSubTardes"></div>
+          <div class="tabla-wrap" style="max-height:none"><table class="mini" id="tbTardes"></table></div>
+        </div>
+      </div>
+      <p class="muted" style="font-size:12px;margin-top:14px">
+        Cómo se calcula: un estudiante asistió un día si tiene al menos una lectura (entrada o salida). Se cuentan como días de clase los días
+        en que registró asistencia al menos el 20 % de lo que se registra en un día normal (así no se cuentan sábados con pocas actividades).
+        El porcentaje usa la cantidad actual de estudiantes activos de cada grado.
+      </p>
+    </section>
+
+    <!-- ===================== ESTUDIANTES ===================== -->
+    <section id="t-estudiantes" class="tab" hidden>
+      <div class="toolbar">
+        <div class="grow"><label class="f" for="buscarEst">Buscar</label><input id="buscarEst" type="search" placeholder="Nombre, código o documento"></div>
+        <div style="min-width:130px"><label class="f" for="estGrado">Grado</label><select id="estGrado" class="sel-grado"></select></div>
+        <button class="btn pri solo-admin" id="btnNuevoEst" type="button">+ Nuevo</button>
+        <button class="btn solo-admin" id="btnImportar" type="button">Importar CSV</button>
+        <input type="file" id="fileCSV" accept=".csv,text/csv" hidden>
+        <button class="btn solo-admin" id="btnPlantilla" type="button">Plantilla CSV</button>
+        <button class="btn" id="btnCarnes" type="button">Imprimir carnés</button>
+      </div>
+      <div id="estInfo" class="muted" style="margin-bottom:8px"></div>
+      <div class="tabla-wrap"><table id="tablaEst"></table></div>
+    </section>
+
+    <!-- ===================== USUARIOS (solo admin) ===================== -->
+    <section id="t-usuarios" class="tab" hidden>
+      <div class="toolbar">
+        <div class="grow"><label class="f" for="buscarUsr">Buscar</label><input id="buscarUsr" type="search" placeholder="Nombre o correo"></div>
+        <button class="btn pri" id="btnNuevoUsr" type="button">+ Crear usuario</button>
+        <button class="btn" id="btnUsrAct" type="button">Actualizar</button>
+      </div>
+      <div id="usrInfo" class="muted" style="margin-bottom:8px"></div>
+      <div class="tabla-wrap"><table id="tablaUsr"></table></div>
+      <div class="card" style="margin-top:14px">
+        <div style="font-weight:700;margin-bottom:8px">Roles</div>
+        <div class="roles-ayuda">
+          <div><b>Administrador</b><br>Todo: estudiantes, carnés, tablero, reportes y esta pestaña de usuarios.</div>
+          <div><b>Portería</b><br>Registra entradas y salidas, consulta el día, el tablero y los reportes.</div>
+          <div><b>Pendiente</b><br>Cuenta nueva que pidió acceso. No ve nada hasta que usted le asigne un rol.</div>
+          <div><b>Desactivado</b><br>Ya no tiene acceso (por ejemplo, un portero que se retiró). Se puede reactivar.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== REPORTES ===================== -->
+    <section id="t-reportes" class="tab" hidden>
+      <div class="card">
+        <div class="toolbar" style="margin:0">
+          <div><label class="f" for="rDesde">Desde</label><input type="date" id="rDesde"></div>
+          <div><label class="f" for="rHasta">Hasta</label><input type="date" id="rHasta"></div>
+          <div style="min-width:120px"><label class="f" for="rGrado">Grado</label><select id="rGrado" class="sel-grado"></select></div>
+          <div><label class="f" for="rTipo">Reporte</label>
+            <select id="rTipo"><option value="resumen">Llegada y salida por día</option><option value="detalle">Detalle de movimientos</option></select></div>
+          <div><label class="f" for="rLimite">Hora límite de llegada</label><input type="time" id="rLimite" value="07:00"></div>
+          <button class="btn pri" id="btnConsultar" type="button">Consultar</button>
+          <button class="btn" id="btnRepCSV" type="button" disabled>Exportar CSV</button>
+        </div>
+      </div>
+      <div id="repInfo" class="muted" style="margin:12px 0 8px"></div>
+      <div class="tabla-wrap"><table id="tablaRep"></table></div>
+    </section>
+  </main>
+</div>
+
+<dialog id="dlgEst">
+  <form id="frmEst" method="dialog">
+    <div class="dlg-h" id="dlgTitulo">Estudiante</div>
+    <div class="dlg-b">
+      <input type="hidden" name="id">
+      <div><label class="f">Código de barras *</label><input type="text" name="codigo" required></div>
+      <div><label class="f">Documento</label><input type="text" name="documento"></div>
+      <div><label class="f">Nombres *</label><input type="text" name="nombres" required></div>
+      <div><label class="f">Apellidos *</label><input type="text" name="apellidos" required></div>
+      <div><label class="f">Grado *</label><input type="text" name="grado" required placeholder="Ej: 6, 10, Transición"></div>
+      <div><label class="f">Grupo</label><input type="text" name="grupo" placeholder="Ej: 01"></div>
+      <div><label class="f">Jornada</label>
+        <select name="jornada"><option>MAÑANA</option><option>TARDE</option><option>ÚNICA</option><option>NOCTURNA</option><option>FIN DE SEMANA</option></select></div>
+      <div><label class="f">Teléfono acudiente</label><input type="text" name="telefono_acudiente"></div>
+      <div class="full"><label class="f">Acudiente</label><input type="text" name="acudiente"></div>
+      <div class="full"><label class="f">URL de foto (opcional)</label><input type="url" name="foto_url" placeholder="https://…"></div>
+      <label class="chk full"><input type="checkbox" name="activo" checked> Estudiante activo (matriculado)</label>
+    </div>
+    <div class="dlg-f">
+      <button class="btn" type="button" id="btnCancelarEst">Cancelar</button>
+      <button class="btn pri" type="submit" id="btnGuardarEst">Guardar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgCuenta">
+  <form id="frmCuenta" method="dialog">
+    <div class="dlg-h" id="cuentaTitulo">Mi cuenta</div>
+    <div class="dlg-b">
+      <div class="full muted" id="cuentaInfo"></div>
+      <div class="full" id="cuentaNombreWrap"><label class="f">Nombre</label><input type="text" name="nombre" autocomplete="name"></div>
+      <div><label class="f">Nueva contraseña</label><input type="password" name="clave" autocomplete="new-password"></div>
+      <div><label class="f">Repita la contraseña</label><input type="password" name="clave2" autocomplete="new-password"></div>
+      <label class="chk full"><input type="checkbox" class="verClave" data-campos="#frmCuenta [name=clave],#frmCuenta [name=clave2]"> Mostrar contraseña</label>
+      <div class="full muted" style="font-size:12px" id="cuentaAyuda">Mínimo 8 caracteres. Deje la contraseña en blanco si no la quiere cambiar.</div>
+    </div>
+    <div class="dlg-f">
+      <button class="btn" type="button" id="btnCancelarCuenta">Cancelar</button>
+      <button class="btn pri" type="submit" id="btnGuardarCuenta">Guardar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgUsr">
+  <form id="frmUsr" method="dialog">
+    <div class="dlg-h">Crear usuario</div>
+    <div class="dlg-b">
+      <div class="full"><label class="f">Nombre *</label><input type="text" name="nombre" required placeholder="Ej: Portería principal · Carlos Pérez"></div>
+      <div class="full"><label class="f">Correo *</label><input type="email" name="email" required autocomplete="off"></div>
+      <div><label class="f">Contraseña temporal *</label><input type="text" name="clave" required minlength="8" autocomplete="off" spellcheck="false"></div>
+      <div><label class="f">Rol *</label><select name="rol"><option value="porteria">Portería</option><option value="admin">Administrador</option></select></div>
+      <div class="full"><button type="button" class="btn sm" id="btnGenClave">Generar otra contraseña</button></div>
+      <div class="full muted" style="font-size:12px">Entregue el correo y la contraseña a la persona. Al ingresar puede cambiarla en <b>Mi cuenta</b> (botón con su nombre, arriba a la derecha).</div>
+    </div>
+    <div class="dlg-f">
+      <button class="btn" type="button" id="btnCancelarUsr">Cancelar</button>
+      <button class="btn pri" type="submit" id="btnCrearUsr">Crear usuario</button>
+    </div>
+  </form>
+</dialog>
+
+<footer class="pie" id="pie">
+  <img class="logoEmp" alt="Logo de la empresa">
+  <div><b class="nomEmp"></b><br><span class="eslogan"></span></div>
+</footer>
+
+<div id="printArea"></div>
+<div id="toast"></div>
+<div id="vizTip" role="tooltip"></div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>

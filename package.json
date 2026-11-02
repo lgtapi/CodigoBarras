@@ -1,0 +1,14 @@
+{
+  "name": "control-acceso-pescador",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Control de ingreso y salida de estudiantes con código de barras · I.E. El Pescador · Control Integral Digital S.A.S",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/generar-config.mjs",
+    "dev": "node scripts/generar-config.mjs && npx --yes serve@14.2.4 public -l 3000"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
