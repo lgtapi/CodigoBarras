@@ -710,8 +710,11 @@ function enfocar() {
   if (i && !$('#t-escanear').hidden) setTimeout(() => i.focus({ preventScroll: true }), 60);
 }
 
+const normalizarCodigo = v => String(v || '').trim().replace(/'/g, '-');
+
 async function procesar(raw, desdeCamara) {
-  const codigo = String(raw || '').trim();
+  // Lectores configurados con teclado de EE. UU. en un equipo con teclado en español escriben ' en lugar de -
+  const codigo = normalizarCodigo(raw);
   if (!codigo || ocupado) return;
   const ahora = Date.now();
   if (desdeCamara && codigo === ultCodigo && ahora - ultTs < 4000) return;   // la cámara lee muchas veces seguidas
@@ -955,6 +958,7 @@ frm.addEventListener('submit', async ev => {
   const fd = new FormData(frm), e = {};
   for (const k of ['id', 'codigo', 'documento', 'nombres', 'apellidos', 'grado', 'grupo', 'jornada', 'acudiente', 'telefono_acudiente', 'foto_url'])
     e[k] = String(fd.get(k) || '').trim() || null;
+  if (e.codigo) e.codigo = normalizarCodigo(e.codigo);
   e.activo = frm.elements.activo.checked;
   if (!e.id) delete e.id;
   if (!e.codigo || !e.nombres || !e.apellidos || !e.grado) return toast('Complete los campos obligatorios (*)', 'bad');
